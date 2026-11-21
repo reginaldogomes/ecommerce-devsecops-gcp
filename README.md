@@ -1,0 +1,216 @@
+# E-Commerce DevSecOps GCP
+
+<p align="left">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12" />
+  <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Pydantic-v2-E92063?style=for-the-badge&logo=pydantic&logoColor=white" alt="Pydantic" />
+  <img src="https://img.shields.io/badge/Docker-Multi--Stage-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="GitHub Actions" />
+  <img src="https://img.shields.io/badge/Terraform-IaC-7B42BC?style=for-the-badge&logo=terraform&logoColor=white" alt="Terraform" />
+  <img src="https://img.shields.io/badge/Google_Cloud-Cloud_Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white" alt="Google Cloud" />
+</p>
+
+API REST de catálogo e pedidos construída em Python e FastAPI com arquitetura em camadas, conteinerização endurecida, esteira de CI/CD com controles de cadeia de suprimentos (*supply chain*) e infraestrutura provisionada via Terraform no Google Cloud Platform.
+
+---
+
+## Arquitetura e Fluxo de Entrega
+
+```mermaid
+flowchart LR
+  Dev[Desenvolvedor] --> Git[GitHub]
+  Git --> CI[CI: Ruff + Mypy + Pytest + Bandit + pip-audit + Gitleaks + Trivy/SBOM]
+  CI -->|Gate obrigatório| CD[CD: OIDC + Build + Digest Imutável]
+  CD --> AR[Artifact Registry]
+  AR --> Canary[Cloud Run: Revisão Canary sem tráfego]
+  Canary -->|Smoke Test OIDC| Prod[Cloud Run: 100% Tráfego Privado]
+  Prod --> Obs[Cloud Logging & Monitoring]
+  Terraform[Terraform IaC] --> IAM[IAM + Workload Identity Federation]
+  Terraform --> AR
+```
+
+---
+
+## Stack Tecnológica
+
+| Camada | Tecnologias |
+|---|---|
+| **Aplicação** | ![Python](https://img.shields.io/badge/-Python_3.12-3776AB?style=flat-square&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) ![Pydantic](https://img.shields.io/badge/-Pydantic_v2-E92063?style=flat-square&logo=pydantic&logoColor=white) ![Uvicorn](https://img.shields.io/badge/-Uvicorn-499848?style=flat-square&logo=gunicorn&logoColor=white) |
+| **Qualidade e Tipagem** | ![Ruff](https://img.shields.io/badge/-Ruff-D7FF64?style=flat-square&logo=ruff&logoColor=black) ![Mypy](https://img.shields.io/badge/-Mypy_Strict-2A6DB2?style=flat-square&logo=python&logoColor=white) ![Pytest](https://img.shields.io/badge/-Pytest_&_Coverage-0A9EDC?style=flat-square&logo=pytest&logoColor=white) |
+| **Segurança (AppSec & Supply Chain)** | ![Bandit](https://img.shields.io/badge/-Bandit_SAST-yellow?style=flat-square&logo=python&logoColor=black) ![pip-audit](https://img.shields.io/badge/-pip--audit-3775A9?style=flat-square&logo=pypi&logoColor=white) ![Gitleaks](https://img.shields.io/badge/-Gitleaks-000000?style=flat-square&logo=git&logoColor=white) ![Trivy](https://img.shields.io/badge/-Trivy_&_SBOM-1904DA?style=flat-square&logo=aquasecurity&logoColor=white) |
+| **Contêiner e Orquestração** | ![Docker](https://img.shields.io/badge/-Docker-2496ED?style=flat-square&logo=docker&logoColor=white) ![Docker Compose](https://img.shields.io/badge/-Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white) |
+| **CI/CD e Automação** | ![GitHub Actions](https://img.shields.io/badge/-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white) ![Dependabot](https://img.shields.io/badge/-Dependabot-025E8C?style=flat-square&logo=dependabot&logoColor=white) |
+| **Nuvem e Infraestrutura** | ![Terraform](https://img.shields.io/badge/-Terraform-7B42BC?style=flat-square&logo=terraform&logoColor=white) ![Google Cloud](https://img.shields.io/badge/-Google_Cloud_Run-4285F4?style=flat-square&logo=googlecloud&logoColor=white) ![Artifact Registry](https://img.shields.io/badge/-Artifact_Registry-4285F4?style=flat-square&logo=googlecloud&logoColor=white) |
+
+---
+
+## Estrutura do Projeto
+
+```text
+.
+├── .github/
+│   ├── dependabot.yml              # Atualizações semanais de Actions e dependências Python
+│   └── workflows/
+│       ├── ci.yml                  # Pipeline de qualidade, SAST, Gitleaks, Trivy e SBOM
+│       ├── deploy.yml              # Gate de CI + OIDC + Canary Deploy no Cloud Run
+│       └── terraform.yml           # Validação, formatação e scan Trivy IaC
+├── app/
+│   ├── api/
+│   │   ├── dependencies.py         # Injeção de dependências FastAPI
+│   │   └── routes.py               # Endpoints REST e probes de observabilidade
+│   ├── core/
+│   │   ├── config.py               # Configurações tipadas via pydantic-settings
+│   │   ├── exceptions.py           # Exceções de domínio e respostas RFC 9457
+│   │   └── logging.py              # Logs JSON estruturados com request_id e trace_id
+│   ├── repositories/
+│   │   ├── base.py                 # Contrato CatalogRepository (Protocol)
+│   │   └── memory.py               # Implementação thread-safe com controle de estoque e idempotência
+│   ├── schemas/
+│   │   └── catalog.py              # Contratos de entrada e saída (Pydantic v2)
+│   ├── services/
+│   │   └── catalog.py              # Regras de negócio de catálogo, pedidos e readiness
+│   └── main.py                     # Factory da aplicação e middleware de contexto HTTP
+├── docs/
+│   ├── adr/                        # Architecture Decision Records (OIDC, Canary, Arquitetura)
+│   ├── arquitetura.md              # Decisões arquiteturais e responsabilidades
+│   └── operacao.md                 # Logs, métricas, rollback e operação no Cloud Run
+├── infra/
+│   ├── main.tf                     # APIs GCP, Artifact Registry, Service Accounts e WIF
+│   ├── outputs.tf                  # Saídas para configuração do GitHub Actions
+│   ├── terraform.tfvars.example    # Modelo de variáveis
+│   ├── variables.tf                # Definição e validação de variáveis
+│   └── versions.tf                 # Versão do Terraform e provider Google
+├── tests/
+│   ├── conftest.py                 # Fixtures isoladas por execução
+│   ├── test_health.py              # Testes de liveness e readiness
+│   ├── test_orders.py              # Testes de pedidos, estoque, idempotência e validação
+│   └── test_products.py            # Testes de catálogo e erros RFC 9457
+├── compose.yaml                    # Execução local endurecida (read-only, cap_drop ALL)
+├── Dockerfile                      # Build multi-stage com usuário não-root e HEALTHCHECK
+├── Makefile                        # Atalhos de desenvolvimento, verificação e segurança
+├── pyproject.toml                  # Metadados, Ruff, Mypy strict, Pytest e Coverage
+├── requirements.txt                # Dependências de runtime
+└── requirements-dev.txt            # Dependências de desenvolvimento e auditoria
+```
+
+---
+
+## Endpoints da API
+
+| Método | Rota | Descrição | Códigos |
+|---|---|---|---|
+| `GET` | `/health` | Healthcheck simples de compatibilidade | `200` |
+| `GET` | `/health/live` | Liveness probe do processo | `200` |
+| `GET` | `/health/ready` | Readiness probe verificando disponibilidade do repositório | `200`, `503` |
+| `GET` | `/products` | Lista produtos do catálogo com estoque disponível | `200` |
+| `GET` | `/products/{product_id}` | Consulta detalhes de um produto específico | `200`, `404` |
+| `POST` | `/orders` | Cria pedido com reserva atômica de estoque e suporte opcional ao header `Idempotency-Key` | `201`, `404`, `409`, `422` |
+
+Respostas de erro seguem o padrão **RFC 9457** (`application/problem+json`) e todas as requisições propagam ou geram `X-Request-ID`, além de extrair `X-Cloud-Trace-Context` para correlação no Cloud Logging.
+
+---
+
+## Execução Local
+
+### Requisitos
+
+- Python 3.12+
+- `uv` e `make` (ou `pip` padrão)
+- Docker e Docker Compose (opcional)
+
+### Ambiente Python
+
+```bash
+make install
+make run
+```
+
+Documentação interativa disponível em `http://localhost:8080/docs`.
+
+Exemplo de criação de pedido com chave de idempotência:
+
+```bash
+curl -X POST http://localhost:8080/orders \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: pedido-001' \
+  -d '{"product_id": 1, "quantity": 2}'
+```
+
+### Verificações de Qualidade e Segurança
+
+```bash
+make check      # ruff check, ruff format --check, mypy (strict) e pytest com cobertura >= 90%
+make security   # bandit (SAST) e pip-audit (vulnerabilidades em dependências)
+```
+
+### Execução com Docker Compose
+
+```bash
+docker compose up --build
+```
+
+O serviço sobe com sistema de arquivos somente leitura (`read_only: true`), remoção de todas as capabilities Linux (`cap_drop: ALL`), `no-new-privileges:true` e `healthcheck` apontando para `/health/ready`.
+
+---
+
+## Controles DevSecOps e CI/CD
+
+- **Autenticação sem chaves estáticas**: O deploy utiliza **Workload Identity Federation (OIDC)** entre GitHub Actions e Google Cloud, eliminando chaves JSON armazenadas em secrets.
+- **Identidades segregadas**: A Service Account de deploy (`github-deployer`) é separada da Service Account de execução (`cloudrun-runtime`).
+- **Imutabilidade e Supply Chain**:
+  - Actions fixadas por **commit SHA** em [ci.yml](.github/workflows/ci.yml) e [deploy.yml](.github/workflows/deploy.yml).
+  - Secret scanning com **Gitleaks** no histórico do repositório.
+  - Scan de imagem com **Trivy** (bloqueando severidades `HIGH` e `CRITICAL`) e geração de **SBOM (CycloneDX)** como artefato.
+- **Gate obrigatório e Canary Deploy**:
+  - O workflow de CD invoca o workflow de CI via `workflow_call` antes de qualquer implantação.
+  - A imagem é implantada pelo **digest SHA-256** sem receber tráfego (`--no-traffic --tag canary`), validada por *smoke test* autenticado em `/health/live` e `/health/ready`, e só então promovida para 100% do tráfego.
+- **Privacidade por padrão**: O serviço Cloud Run é provisionado com `--no-allow-unauthenticated`, exigindo IAM (`roles/run.invoker`) para chamadas externas.
+
+---
+
+## Provisionamento no Google Cloud (Terraform)
+
+Pré-requisitos: projeto GCP com faturamento ativo, `gcloud` CLI, Terraform `>= 1.6.0` e permissões para gerenciar APIs, IAM, Artifact Registry e Workload Identity Federation.
+
+1. Autentique-se no GCP:
+   ```bash
+   gcloud auth login
+   gcloud auth application-default login
+   gcloud config set project SEU_PROJECT_ID
+   ```
+2. Configure as variáveis do Terraform:
+   ```bash
+   cd infra
+   cp terraform.tfvars.example terraform.tfvars
+   ```
+3. Aplique a infraestrutura base:
+   ```bash
+   terraform init
+   terraform fmt -check
+   terraform validate
+   terraform plan
+   terraform apply
+   ```
+4. Recupere as saídas para configurar o GitHub:
+   ```bash
+   terraform output -raw workload_identity_provider
+   terraform output -raw deployer_service_account
+   terraform output -raw runtime_service_account
+   ```
+5. No repositório GitHub, crie o environment `production` (recomendado exigir aprovação manual) e adicione em **Settings > Secrets and variables > Actions > Variables**:
+
+| Variável | Origem / Valor |
+|---|---|
+| `GCP_PROJECT_ID` | ID do projeto no Google Cloud |
+| `GCP_REGION` | Região escolhida (padrão: `southamerica-east1`) |
+| `WIF_PROVIDER` | Output `workload_identity_provider` |
+| `DEPLOYER_SA` | Output `deployer_service_account` |
+| `RUNTIME_SA` | Output `runtime_service_account` |
+
+Consulte [docs/arquitetura.md](docs/arquitetura.md) e [docs/operacao.md](docs/operacao.md) para detalhes operacionais, consulta de logs, métricas e procedimento de rollback.
+
+---
+
+## Licença
+
+[MIT](LICENSE)

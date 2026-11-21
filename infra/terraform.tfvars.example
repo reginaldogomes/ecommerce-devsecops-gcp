@@ -1,0 +1,3 @@
+project_id = "meu-projeto-gcp"
+region = "southamerica-east1"
+github_repository = "meu-usuario/ecommerce_devsecops_gcp"
